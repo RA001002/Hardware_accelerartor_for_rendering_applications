@@ -2,3 +2,5 @@
 capstone project
 
 Ismein mein kucch bhot khatarnaak krne lga
+
+gpu bhai
