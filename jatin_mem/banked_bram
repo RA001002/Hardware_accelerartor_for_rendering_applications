@@ -1,0 +1,62 @@
+
+
+module Banked_bram(
+    input  logic clk,
+    input  logic rst,
+    mem_interface mem_port
+);
+
+    import parameter_package::*;
+
+    logic [$clog2(NUM_BANKS)-1:0] bank_id;
+    logic [ADDR_WIDTH-1:0] bank_addr;
+
+    logic bank_busy [NUM_BANKS-1:0];
+
+    assign bank_id   = mem_port.addr % NUM_BANKS;
+    assign bank_addr = mem_port.addr / NUM_BANKS;
+
+    // Backpressure
+    assign mem_port.ready = !bank_busy[bank_id];
+
+    logic [DATA_WIDTH-1:0] rdata [NUM_BANKS-1:0];
+
+    genvar i;
+    generate
+        for (i = 0; i < NUM_BANKS; i++) begin : banks
+
+            dualport_bram #(
+                .ADDR_WIDTH(ADDR_WIDTH-2),
+                .DATA_WIDTH(DATA_WIDTH)
+            ) bram_inst (
+                .clk(clk),
+
+                .addr_a(bank_addr),
+                .rdata_a(rdata[i]),
+
+                .addr_b(bank_addr),
+                .wdata_b(mem_port.wdata),
+                .we_b(mem_port.write && (bank_id == i)),
+                .rdata_b()
+            );
+
+        end
+    endgenerate
+
+    // Conflict handling
+    always_ff @(posedge clk or posedge rst) begin
+        if (rst) begin
+            for (int j = 0; j < NUM_BANKS; j++)
+                bank_busy[j] <= 0;
+        end else begin
+            for (int j = 0; j < NUM_BANKS; j++)
+                bank_busy[j] <= 0;
+
+            if (mem_port.valid && mem_port.ready)
+                bank_busy[bank_id] <= 1;
+        end
+    end
+
+    assign mem_port.rdata = rdata[bank_id];
+
+endmodule
